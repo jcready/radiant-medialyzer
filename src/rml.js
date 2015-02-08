@@ -10,7 +10,7 @@
  * RadiantML class definition
  * @class
  */
-var RadiantML = (function () {
+var RadiantML = (function (root, doc, nav) {
   "use strict";
   /**
    * Creates an instance of RadiantML
@@ -22,8 +22,30 @@ var RadiantML = (function () {
     this._mimeTypes = _getMimeTypes();
     this._standalone = _getStandaloneMode();
   }
+  
+  /**** constants start here ****/
+  var AUDIO  = doc.createElement('audio'),
+      VIDEO  = doc.createElement('video'),
+      CANVAS = doc.createElement('canvas');
 
   /**** private methods start here ****/
+  /**
+   * Check if it can play type
+   * @param {string} mime - the MIME type
+   * @param {string} exactly - match support string exactly (e.g. "probably", "maybe")
+   * @returns {boolean} If the browser can play a specific MIME type
+   */
+  var _canPlay = (function(){
+    var isAudio = /^audio\//;
+    return function canPlayType(mime, exactly) {
+      var canPlay = isAudio.test(mime)
+        ? AUDIO.canPlayType && AUDIO.canPlayType(mime)
+        : VIDEO.canPlayType && VIDEO.canPlayType(mime);
+      return exactly
+        ? canPlay && canPlay === exactly
+        : !!canPlay;
+    };
+  })();
   /**
    * Get plugin version from version property
    * @private
@@ -73,10 +95,7 @@ var RadiantML = (function () {
    * @returns {string|null} user agent string or null
    */
   var _getUserAgent = function () {
-    if (!!window.navigator.userAgent) {
-      return window.navigator.userAgent;
-    }
-    return null;
+    return nav.userAgent || null;
   };
   /**
    * Obtain user agent plugins list
@@ -84,8 +103,8 @@ var RadiantML = (function () {
    * @returns {Object|null} PluginArray or null
    */
   var _getPlugins = function () {
-    if (!!window.navigator.plugins && window.navigator.plugins.length > 0) {
-      return window.navigator.plugins;
+    if (!!nav.plugins && nav.plugins.length > 0) {
+      return nav.plugins;
     }
     return null;
   };
@@ -95,8 +114,8 @@ var RadiantML = (function () {
    * @returns {Object|null} MimeTypeArray or null
    */
   var _getMimeTypes = function () {
-    if (!!window.navigator.mimeTypes && window.navigator.mimeTypes.length > 0) {
-      return window.navigator.mimeTypes;
+    if (!!nav.mimeTypes && nav.mimeTypes.length > 0) {
+      return nav.mimeTypes;
     }
     return null;
   };
@@ -106,8 +125,8 @@ var RadiantML = (function () {
    * @returns {boolean|null} is in standalone mode or null
    */
   var _getStandaloneMode = function () {
-    if (!!window.navigator.standalone) {
-      return window.navigator.standalone;
+    if (!!nav.standalone) {
+      return nav.standalone;
     }
     return null;
   };
@@ -140,19 +159,20 @@ var RadiantML = (function () {
     var isChrome = false;
     var chromeVersion = null;
     var support = [isChrome, chromeVersion];
-    var windowChrome = !!window.chrome;
+    var rootChrome = !!root.chrome;
+    var pattern;
     // check it is not a WebView
     if (!_isNativeAndroidBrowser()) {
-      if (windowChrome) {
-        // Opera returns true on !!window.chrome
-        var pattern = /(opr|opera)/i;
+      if (rootChrome) {
+        // Opera returns true on !!root.chrome
+        pattern = /(opr|opera)/i;
         if (!pattern.test(ua)) {
           isChrome = true;
         }
       }
     }
     if (isChrome) {
-      var pattern = /chrome\/(\d+)\.(\d+)\.?(\d+)?/i;
+      pattern = /chrome\/(\d+)\.(\d+)\.?(\d+)?/i;
       var versionArray = ua.match(pattern);
       if (!!versionArray) {
         chromeVersion = [
@@ -180,7 +200,7 @@ var RadiantML = (function () {
     var pattern = /(ipad|iphone|ipod|apple tv)/i;
     if (pattern.test(ua)) {
       isIOS = true;
-      var pattern = /os\s(\d+)_(\d+)_?(\d+)?/i;
+      pattern = /os\s(\d+)_(\d+)_?(\d+)?/i;
       var versionArray = ua.match(pattern);
       if (!!versionArray) {
         iOSVersion = [
@@ -206,10 +226,9 @@ var RadiantML = (function () {
     var androidVersion = null;
     var support = [isAndroid, androidVersion];
     var pattern = /android/i;
-    ;
     if (pattern.test(ua)) {
       isAndroid = true;
-      var pattern = /android\s(\d+)\.(\d+)\.?(\d+)?/i;
+      pattern = /android\s(\d+)\.(\d+)\.?(\d+)?/i;
       var versionArray = ua.match(pattern);
       if (!!versionArray) {
         androidVersion = [
@@ -238,7 +257,7 @@ var RadiantML = (function () {
     if (pattern.test(ua)) {
       isIE = true;
       if (pattern1.test(ua)) {
-        var re = new RegExp("MSIE ([0-9]{1,}[\.0-9]{0,})");
+        var re = new RegExp("MSIE ([0-9]{1,}[.0-9]{0,})");
         if (re.exec(ua) !== null) {
           ieVersion = parseFloat(RegExp.$1);
         }
@@ -265,7 +284,7 @@ var RadiantML = (function () {
     var pattern = /(opr|opios)/i;
     if (pattern.test(ua)) {
       isOpera = true;
-      var pattern = /opr\/(\d+)\.(\d+)\.?(\d+)?/i;
+      pattern = /opr\/(\d+)\.(\d+)\.?(\d+)?/i;
       var versionArray = ua.match(pattern);
       if (!!versionArray) {
         operaVersion = [
@@ -321,7 +340,7 @@ var RadiantML = (function () {
    * @returns {boolean} has HTML5 video tag support (or not)
    */
   RadiantML.prototype.video5 = function () {
-    return !!document.createElement('video').canPlayType;
+    return !!VIDEO.canPlayType;
   };
   /**
    * Feature: mp4 with H264 baseline video and AAC low complexity audio
@@ -342,15 +361,7 @@ var RadiantML = (function () {
         videoCodec = 'avc1.640032';
       }
     }
-    if (this.video5()) {
-      var canPlayType = document.
-          createElement('video').
-          canPlayType('video/mp4; codecs="' + videoCodec + ',mp4a.40.2"');
-      if (canPlayType  === 'probably') {
-        return true;
-      }
-    }
-    return false;
+    return _canPlay('video/mp4; codecs="' + videoCodec + ',mp4a.40.2"', 'probably');
   };
   /**
    * Feature: WebM with VP8 video and Vorbis audio
@@ -358,15 +369,7 @@ var RadiantML = (function () {
    * @returns {boolean} has WebM VP8/Vorbis support in HTML5 video (or not)
    */
   RadiantML.prototype.webmVP8Vorbis = function () {
-    if (this.video5()) {
-      var canPlayType = document.
-          createElement('video').
-          canPlayType('video/webm; codecs="vp8, vorbis"');
-      if (canPlayType  === 'probably') {
-        return true;
-      }
-    }
-    return false;
+    return _canPlay('video/webm; codecs="vp8, vorbis"', 'probably');
   };
   /**
    * Feature: WebM with VP9 video and Opus audio
@@ -374,15 +377,7 @@ var RadiantML = (function () {
    * @returns {boolean} has WebM VP9/Opus support in HTML5 video (or not)
    */
   RadiantML.prototype.webmVP9Opus = function () {
-    if (this.video5()) {
-      var canPlayType = document.
-          createElement('video').
-          canPlayType('video/webm; codecs="vp9, opus"');
-      if (canPlayType  === 'probably') {
-        return true;
-      }
-    }
-    return false;
+    return _canPlay('video/webm; codecs="vp9, opus"', 'probably');
   };
   /**
    * Feature: Ogg with Theora video and Vorbis audio
@@ -390,26 +385,19 @@ var RadiantML = (function () {
    * @returns {boolean} has Ogg Theora/Vorbis support in HTML5 video (or not)
    */
   RadiantML.prototype.oggTheoraVorbis = function () {
-    if (this.video5()) {
-      var canPlayType = document.
-          createElement('video').
-          canPlayType('video/ogg; codecs="theora, vorbis"');
-      if (canPlayType  === 'probably') {
-        return true;
-      }
-    }
-    return false;
+    return _canPlay('video/ogg; codecs="theora, vorbis"', 'probably');
   };
+
   /**
    * Feature: Native fullscreen support
    * @public
    * @returns {boolean} has native fullscreen support (or not)
    */
   RadiantML.prototype.nativeFS = function () {
-    var fs = document.documentElement.requestFullscreen ||
-        document.documentElement.mozRequestFullScreen ||
-        document.documentElement.webkitRequestFullscreen ||
-        document.documentElement.msRequestFullscreen;
+    var fs = doc.documentElement.requestFullscreen ||
+        doc.documentElement.mozRequestFullScreen ||
+        doc.documentElement.webkitRequestFullscreen ||
+        doc.documentElement.msRequestFullscreen;
     return !!fs;
   };
   /**
@@ -418,7 +406,7 @@ var RadiantML = (function () {
    * @returns {boolean} has HTML5 audio tag support (or not)
    */
   RadiantML.prototype.audio5 = function () {
-    return !!document.createElement('audio').canPlayType;
+    return !!AUDIO.canPlayType;
   };
   /**
    * Feature: M4A/AAC audio
@@ -426,15 +414,7 @@ var RadiantML = (function () {
    * @returns {boolean} has M4A/AAC audio support in HTML5 audio (or not)
    */
   RadiantML.prototype.m4aAAC = function () {
-    if (this.audio5()) {
-      var canPlayType = document.
-          createElement('audio').
-          canPlayType('audio/mp4; codecs="mp4a.40.2"');
-      if (canPlayType  === 'probably') {
-        return true;
-      }
-    }
-    return false;
+    return _canPlay('audio/mp4; codecs="mp4a.40.2"', 'probably');
   };
   /**
    * Feature: MP3 audio
@@ -442,15 +422,7 @@ var RadiantML = (function () {
    * @returns {boolean} has MP3 audio support in HTML5 audio (or not)
    */
   RadiantML.prototype.mp3 = function () {
-    if (this.audio5()) {
-      var canPlayType = document.
-          createElement('audio').
-          canPlayType('audio/mpeg');
-      if (!!canPlayType) {
-        return true;
-      }
-    }
-    return false;
+    return _canPlay('audio/mpeg');
   };
   /**
    * Feature: Vorbis audio in Ogg
@@ -458,15 +430,7 @@ var RadiantML = (function () {
    * @returns {boolean} has Vorbis/Ogg audio support in HTML5 audio (or not)
    */
   RadiantML.prototype.oggVorbis = function () {
-    if (this.audio5()) {
-      var canPlayType = document.
-          createElement('audio').
-          canPlayType('audio/ogg; codecs="vorbis"');
-      if (canPlayType  === 'probably') {
-        return true;
-      }
-    }
-    return false;
+    return _canPlay('audio/ogg; codecs="vorbis"', 'probably');
   };
   /**
    * Feature: Opus audio in WebM
@@ -474,15 +438,7 @@ var RadiantML = (function () {
    * @returns {boolean} has Opus/WebM audio support in HTML5 audio (or not)
    */
   RadiantML.prototype.webmOpus = function () {
-    if (this.audio5()) {
-      var canPlayType = document.
-          createElement('audio').
-          canPlayType('audio/webm; codecs="opus"');
-      if (canPlayType  === 'probably') {
-        return true;
-      }
-    }
-    return false;
+    return _canPlay('audio/webm; codecs="opus"', 'probably');
   };
   /**
    * Feature: WAVE/PCM audio
@@ -490,15 +446,7 @@ var RadiantML = (function () {
    * @returns {boolean} has WAVE/PCM audio support in HTML5 audio (or not)
    */
   RadiantML.prototype.wavPCM = function () {
-    if (this.audio5()) {
-      var canPlayType = document.
-          createElement('audio').
-          canPlayType('audio/wav');
-      if (!!canPlayType) {
-        return true;
-      }
-    }
-    return false;
+    return _canPlay('audio/wav');
   };
   /**
    * Feature: Web Audio API
@@ -506,11 +454,10 @@ var RadiantML = (function () {
    * @returns {boolean} has Web Audio API support (or not)
    */
   RadiantML.prototype.webAudio = function () {
-    var audioContext = window.AudioContext ||
-        window.webkitAudioContext ||
-        window.mozAudioContext ||
-        window.msAudioContext;
-    return !!audioContext;
+    return root.AudioContext ||
+           root.webkitAudioContext ||
+           root.mozAudioContext ||
+           root.msAudioContext;
   };
   /**
    * Feature: Media Source Extensions - required for MPEG-DASH
@@ -518,7 +465,7 @@ var RadiantML = (function () {
    * @returns {boolean} has Media Source Extensions support (or not)
    */
   RadiantML.prototype.mse = function () {
-    var mse = "MediaSource" in window || "WebKitMediaSource" in window;
+    var mse = "MediaSource" in root || "WebKitMediaSource" in root;
     return !!mse;
   };
   /**
@@ -527,7 +474,7 @@ var RadiantML = (function () {
    * @returns {boolean} has Encrypted Media Extensions support (or not)
    */
   RadiantML.prototype.eme = function () {
-    var eme = "MediaKeys" in window || "WebKitMediaKeys" in window || "MSMediaKeys" in window;
+    var eme = "MediaKeys" in root || "WebKitMediaKeys" in root || "MSMediaKeys" in root;
     return !!eme;
   };
   /**
@@ -536,10 +483,10 @@ var RadiantML = (function () {
    * @returns {boolean} has getUserMedia API support (or not)
    */
   RadiantML.prototype.getUserMedia = function () {
-    var getUserMedia = navigator.getUserMedia ||
-        navigator.webkitGetUserMedia ||
-        navigator.mozGetUserMedia ||
-        navigator.msGetUserMedia;
+    var getUserMedia = nav.getUserMedia ||
+        nav.webkitGetUserMedia ||
+        nav.mozGetUserMedia ||
+        nav.msGetUserMedia;
     return !!getUserMedia;
   };
   /**
@@ -548,10 +495,10 @@ var RadiantML = (function () {
    * @returns {boolean} has RTCPeerConnection API support (or not)
    */
   RadiantML.prototype.rtcPeerConnection = function () {
-    var RTCPeerConnection = window.RTCPeerConnection ||
-        window.mozRTCPeerConnection ||
-        window.webkitRTCPeerConnection ||
-        window.msRTCPeerConnection;
+    var RTCPeerConnection = root.RTCPeerConnection ||
+        root.mozRTCPeerConnection ||
+        root.webkitRTCPeerConnection ||
+        root.msRTCPeerConnection;
     return !!RTCPeerConnection;
   };
   /**
@@ -560,10 +507,10 @@ var RadiantML = (function () {
    * @returns {boolean} has RTCSessionDescription API support (or not)
    */
   RadiantML.prototype.rtcSessionDescription = function () {
-    var RTCSessionDescription = window.RTCSessionDescription ||
-        window.mozRTCSessionDescription ||
-        window.webkitRTCSessionDescription ||
-        window.msRTCSessionDescription;
+    var RTCSessionDescription = root.RTCSessionDescription ||
+        root.mozRTCSessionDescription ||
+        root.webkitRTCSessionDescription ||
+        root.msRTCSessionDescription;
     return !!RTCSessionDescription;
   };
   /**
@@ -572,7 +519,7 @@ var RadiantML = (function () {
    * @returns {boolean} has WebSocket API support (or not)
    */
   RadiantML.prototype.webSocket = function () {
-    var WebSocket = window.WebSocket || window.MozWebSocket;
+    var WebSocket = root.WebSocket || root.MozWebSocket;
     return !!WebSocket;
   };
   /**
@@ -581,7 +528,7 @@ var RadiantML = (function () {
    * @returns {boolean} has Web Worker API support (or not)
    */
   RadiantML.prototype.webWorker = function () {
-    var webWorker = window.Worker;
+    var webWorker = root.Worker;
     return !!webWorker;
   };
   /**
@@ -592,9 +539,9 @@ var RadiantML = (function () {
   RadiantML.prototype.webStorage = function () {
     //try/catch to fix a bug in older versions of Firefox
     try {
-      if (typeof window.localStorage !== 'undefined' &&
-          window['localStorage'] !== null &&
-          typeof window.sessionStorage !== 'undefined') {
+      if (typeof root.localStorage !== 'undefined' &&
+          root.localStorage !== null &&
+          typeof root.sessionStorage !== 'undefined') {
         return true;
       } else {
         return false;
@@ -609,7 +556,7 @@ var RadiantML = (function () {
    * @returns {boolean} has canvas element support (or not)
    */
   RadiantML.prototype.canvas = function () {
-    return !!document.createElement('canvas').getContext;
+    return !!CANVAS.getContext;
   };
   /**
    * Feature: canvas text API support
@@ -618,7 +565,7 @@ var RadiantML = (function () {
    */
   RadiantML.prototype.canvasText = function () {
     if (this.canvas()) {
-      var context = document.createElement('canvas').getContext('2d');
+      var context = CANVAS.getContext('2d');
       return typeof context.fillText === 'function';
     }
     return false;
@@ -630,7 +577,7 @@ var RadiantML = (function () {
    */
   RadiantML.prototype.canvasBlending = function () {
     if (this.canvas()) {
-      var context = document.createElement('canvas').getContext('2d');
+      var context = CANVAS.getContext('2d');
       context.globalCompositeOperation = 'screen';
       return context.globalCompositeOperation === 'screen';
     }
@@ -643,7 +590,7 @@ var RadiantML = (function () {
    */
   RadiantML.prototype.canvasWebGL = function () {
     if (this.canvas()) {
-      var canvas = document.createElement('canvas'), context;
+      var canvas = CANVAS, context;
       try {
         context = canvas.getContext('webgl');
         return true;
@@ -689,7 +636,7 @@ var RadiantML = (function () {
     } else if (this._plugins) {
       // check by plugin direct name first as explained
       // on https://developer.mozilla.org/en-US/docs/Web/API/NavigatorPlugins.plugins
-      var flash = navigator.plugins['Shockwave Flash'];
+      var flash = nav.plugins['Shockwave Flash'];
       if (!!flash) {
         hasFlash = true;
         if (!!flash.version) {
@@ -701,7 +648,7 @@ var RadiantML = (function () {
       }
     } else if (this._mimeTypes) {
       // check by mimeTypes as a fallback
-      var flash = navigator.mimeTypes['application/x-shockwave-flash'];
+      var flash = nav.mimeTypes['application/x-shockwave-flash'];
       if (!!flash && flash.enabledPlugin) {
         hasFlash = true;
         if (!!flash.enabledPlugin.description) {
@@ -722,22 +669,13 @@ var RadiantML = (function () {
    */
   RadiantML.prototype.hlsVideo = function () {
     if (this.video5()) {
-      var _rawHlsVideo = function () {
-        var canPlayType = document.
-            createElement('video').
-            canPlayType('application/vnd.apple.mpegurl');
-        if (!!canPlayType) {
-          return true;
-        }
-        return false;
-      };
       var ua = this.getUserAgent();
       var isAndroid = _isAndroid(ua);
       var isIOS = _isIOS(ua);
       // iOS and Android 4+ are sure ok
       if (isIOS[0] ||
           (isAndroid[0] && isAndroid[1][0] >= 4) ||
-          _rawHlsVideo()) {
+          _canPlay('application/vnd.apple.mpegurl')) {
         return true;
       }
     }
@@ -751,22 +689,13 @@ var RadiantML = (function () {
    */
   RadiantML.prototype.hlsAudio = function () {
     if (this.audio5()) {
-      var _rawHlsAudio = function () {
-        var canPlayType = document.
-            createElement('audio').
-            canPlayType('audio/mpegurl');
-        if (!!canPlayType) {
-          return true;
-        }
-        return false;
-      };
       var ua = this.getUserAgent();
       var isAndroid = _isAndroid(ua);
       var isIOS = _isIOS(ua);
       // iOS and Android 4+ are sure ok
       if (isIOS[0] ||
           (isAndroid[0] && isAndroid[1][0] >= 4) ||
-          _rawHlsAudio()) {
+          _canPlay('audio/mpegurl')) {
         return true;
       }
     }
@@ -816,4 +745,4 @@ var RadiantML = (function () {
 
   return RadiantML;
 
-})();
+})(window, document, navigator);
